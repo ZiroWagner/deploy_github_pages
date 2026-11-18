@@ -140,28 +140,88 @@ function initBinsDock() {
   }
 }
 
+const GITHUB_PAGES_BASE = "https://zirowagner.github.io/deploy_github_pages/";
+const GITHUB_RAW_BASE = "https://raw.githubusercontent.com/ZiroWagner/deploy_github_pages/main/";
+
+function configureOrtEnv() {
+  ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/";
+  // numThreads = 1 evita requerir SharedArrayBuffer (headers COOP/COEP no presentes en GitHub Pages ni file://)
+  ort.env.wasm.numThreads = 1;
+  ort.env.wasm.simd = true;
+}
+
+async function fetchModelBuffer(relPath, label) {
+  const isFileProtocol = window.location.protocol === "file:";
+  // Si se abre con file://, el navegador bloquea fetch("file:///...") por CORS.
+  // En ese caso descargamos automáticamente el binario .onnx desde nuestro repositorio HTTPS (que tiene CORS * habilitado).
+  const candidateUrls = isFileProtocol
+    ? [GITHUB_PAGES_BASE + relPath, GITHUB_RAW_BASE + relPath]
+    : [relPath, GITHUB_PAGES_BASE + relPath, GITHUB_RAW_BASE + relPath];
+
+  let lastErr = null;
+  for (const url of candidateUrls) {
+    try {
+      statusTextEl.textContent = `Cargando ${label}...`;
+      const resp = await fetch(url, { mode: "cors", cache: "force-cache" });
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status} en ${url}`);
+      }
+      const arrayBuf = await resp.arrayBuffer();
+      if (arrayBuf.byteLength < 100000) {
+        throw new Error(`Archivo ONNX incompleto (${arrayBuf.byteLength} bytes)`);
+      }
+      return new Uint8Array(arrayBuf);
+    } catch (err) {
+      console.warn(`Intento fallido cargando ${url}:`, err);
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error(`No se pudo cargar ${relPath}`);
+}
+
 async function initModels() {
   try {
-    ort.env.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency || 2);
-    statusTextEl.textContent = "Cargando Clasificador ONNX...";
-    clsSession = await ort.InferenceSession.create("models/ciro_cls_ntp_v3.onnx", {
+    configureOrtEnv();
+    const clsBytes = await fetchModelBuffer("models/ciro_cls_ntp_v3.onnx", "Clasificador ONNX (21.3 MB)");
+    clsSession = await ort.InferenceSession.create(clsBytes, {
       executionProviders: ["wasm"]
     });
     statusTextEl.textContent = "ONNX WebAssembly Activo";
   } catch (err) {
     console.error(err);
-    statusTextEl.textContent = "Error ONNX: " + err.message;
+    statusTextEl.textContent = "Modo Offline: usa '📂 .ONNX Local' para seleccionar models/ciro_cls_ntp_v3.onnx";
   }
 }
 
 async function ensureDetModel() {
   if (detSession) return detSession;
-  statusTextEl.textContent = "Cargando Detector YOLO26s ONNX...";
-  detSession = await ort.InferenceSession.create("models/yolo26s_ntp_7c_v3.onnx", {
+  configureOrtEnv();
+  const detBytes = await fetchModelBuffer("models/yolo26s_ntp_7c_v3.onnx", "Detector YOLO26s ONNX (38.1 MB)");
+  detSession = await ort.InferenceSession.create(detBytes, {
     executionProviders: ["wasm"]
   });
   statusTextEl.textContent = "Clasificador + Detector ONNX Activos";
   return detSession;
+}
+
+async function loadLocalOnnxFiles(fileList) {
+  configureOrtEnv();
+  for (const file of fileList) {
+    const fname = file.name.toLowerCase();
+    statusTextEl.textContent = `Cargando ${file.name} desde disco...`;
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    if (fname.includes("det") || fname.includes("yolo26")) {
+      detSession = await ort.InferenceSession.create(bytes, { executionProviders: ["wasm"] });
+      statusTextEl.textContent = `Detector local cargado (${file.name})`;
+    } else {
+      clsSession = await ort.InferenceSession.create(bytes, { executionProviders: ["wasm"] });
+      statusTextEl.textContent = `Clasificador local cargado (${file.name})`;
+    }
+  }
+  if (currentImgSource && !webcamStream) {
+    runInference(currentImgSource, false);
+  }
 }
 
 function preprocessToTensor(imgSource, targetSize) {
@@ -428,14 +488,17 @@ confSlider.addEventListener("input", e => {
   }
 });
 
-function loadSample(url, cardEl) {
+function loadSample(cardEl) {
   stopWebcam();
   document.querySelectorAll(".sample-card").forEach(c => c.classList.remove("active"));
-  if (cardEl) cardEl.classList.add("active");
+  if (!cardEl) return;
+  cardEl.classList.add("active");
+  const thumbImg = cardEl.querySelector("img");
+  if (!thumbImg) return;
+  // Las miniaturas están embebidas como data:image/jpeg;base64,... para evitar cualquier bloqueo CORS en file://
   const img = new Image();
-  img.crossOrigin = "anonymous";
   img.onload = () => runInference(img, true);
-  img.src = url;
+  img.src = thumbImg.src;
 }
 
 function pickRandomSample() {
@@ -480,6 +543,15 @@ viewport.addEventListener("drop", e => {
 document.getElementById("file-input").addEventListener("change", e => {
   if (e.target.files[0]) handleImageFile(e.target.files[0]);
 });
+
+const onnxInputEl = document.getElementById("onnx-input");
+if (onnxInputEl) {
+  onnxInputEl.addEventListener("change", e => {
+    if (e.target.files && e.target.files.length) {
+      loadLocalOnnxFiles(e.target.files);
+    }
+  });
+}
 
 function handleImageFile(file) {
   stopWebcam();
