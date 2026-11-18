@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ciro v3 · Clasificador y Detector Web ONNX — NTP 900.058 (UPeU)</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
+</head>
+<body>
+<header class="hero">
+  <div class="hero-top">
+    <div class="brand">
+      <img src="assets/logo_upeu.png" alt="Logo UPeU">
+      <div>
+        <span class="tag">Universidad Peruana Unión · Ingeniería de Sistemas / IA</span>
+        <h1>Sistema Inteligente de Clasificación de Residuos Sólidos (NTP 900.058)</h1>
+      </div>
+    </div>
+  </div>
+  <p>Despliegue 100% estático en navegador mediante <b>ONNX Runtime Web (WebAssembly)</b> para GitHub Pages. Ejecuta nuestros modelos mejorados <b>Ciro v3</b> (<code>ciro_cls_ntp_v3.onnx</code> y <code>yolo26s_ntp_7c_v3.onnx</code>) con acceso directo al <b>Dataset Curado de 14,189 imágenes</b> y al <b>Dossier Técnico</b>.</p>
+  <div class="bins">
+    <div class="bin"><i style="background:#e9edf2"></i><b>Blanco</b>&nbsp;Plásticos</div>
+    <div class="bin"><i style="background:#1f6feb"></i><b>Azul</b>&nbsp;Papel y cartón</div>
+    <div class="bin"><i style="background:#f2c94c"></i><b>Amarillo</b>&nbsp;Metales</div>
+    <div class="bin"><i style="background:#8a94a6"></i><b>Gris</b>&nbsp;Vidrio</div>
+    <div class="bin"><i style="background:#8b5a2b"></i><b>Marrón</b>&nbsp;Orgánicos</div>
+    <div class="bin"><i style="background:#1b1f24"></i><b>Negro</b>&nbsp;No aprovechables</div>
+    <div class="bin"><i style="background:#e5484d"></i><b>Rojo</b>&nbsp;Peligrosos / Biocontaminados</div>
+  </div>
+</header>
+
+<nav>
+  <a href="index.html" class="active">🚀 Inferencia ONNX en Vivo</a>
+  <a href="dataset/index.html">📦 Dataset Curado NTP 900.058 (14,189 imgs)</a>
+  <a href="dossier.html">📊 Dossier de Evaluación Ciro v3</a>
+</nav>
+
+<main>
+  <div class="grid g4" style="margin-bottom:20px">
+    <div class="card kpi"><b>67.8%</b><span>Exactitud Balanceada (9 grupos)</span><small>Supera el 45.4% de Ciro v2 (+22.4 pp)</small></div>
+    <div class="card kpi"><b>66.0%</b><span>Exactitud Global Sonda Externa</span><small>0.0% Sin detección · Macro-F1: 0.619</small></div>
+    <div class="card kpi"><b>85.2%</b><span>Acierto en Orgánicos (Marrón)</span><small>Invariancia a escala de grises (Δ -1.2 pp)</small></div>
+    <div class="card kpi"><b>93.2%</b><span>mAP@0.5 en Peligrosos (Rojo)</span><small>Test Split Independiente (2,003 imgs)</small></div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card">
+      <h3 style="margin-top:0">1 · Panel de Inferencia Web ONNX (100% Client-Side)</h3>
+      <div class="controls">
+        <select id="mode-select" class="btn">
+          <option value="cls">Modo 1: Clasificador Calibrado (ciro_cls_ntp_v3.onnx · 320px)</option>
+          <option value="hybrid">Modo 2: Ciro v3 Híbrido (Fusión 0.74·Cls + 0.26·Det + Regla Rojo)</option>
+          <option value="det">Modo 3: Detector Multiobjeto (yolo26s_ntp_7c_v3.onnx · 640px)</option>
+        </select>
+        <label class="btn primary" for="file-input">📁 Subir Imagen</label>
+        <input id="file-input" type="file" accept="image/*" style="display:none">
+        <button id="webcam-btn" class="btn" onclick="toggleWebcam()">📷 Cámara en Vivo</button>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="view-canvas" width="640" height="480"></canvas>
+      </div>
+      <div class="status-bar">
+        <span id="model-status">Inicializando ONNX Runtime Web...</span>
+        <span id="inference-latency">Latencia: — ms</span>
+      </div>
+
+      <h4 style="margin:18px 0 6px;font-size:13px;text-transform:uppercase;color:var(--mut)">Muestras Reales del Dataset (Clic para clasificar con ONNX)</h4>
+      <div class="samples-grid">
+        <div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_plastico_1.jpg', this)"><img src='dataset/samples/sample_plastico_1.jpg' alt='plastico'><span style='background:#e9edf2;color:#16181d'>Blanco · plastico</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_plastico_2.jpg', this)"><img src='dataset/samples/sample_plastico_2.jpg' alt='plastico'><span style='background:#e9edf2;color:#16181d'>Blanco · plastico</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_papel_carton_1.jpg', this)"><img src='dataset/samples/sample_papel_carton_1.jpg' alt='papel_carton'><span style='background:#1f6feb;color:#ffffff'>Azul · papel_carton</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_papel_carton_2.jpg', this)"><img src='dataset/samples/sample_papel_carton_2.jpg' alt='papel_carton'><span style='background:#1f6feb;color:#ffffff'>Azul · papel_carton</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_metal_1.jpg', this)"><img src='dataset/samples/sample_metal_1.jpg' alt='metal'><span style='background:#f2c94c;color:#16181d'>Amarillo · metal</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_metal_2.jpg', this)"><img src='dataset/samples/sample_metal_2.jpg' alt='metal'><span style='background:#f2c94c;color:#16181d'>Amarillo · metal</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_vidrio_1.jpg', this)"><img src='dataset/samples/sample_vidrio_1.jpg' alt='vidrio'><span style='background:#8a94a6;color:#ffffff'>Gris · vidrio</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_vidrio_2.jpg', this)"><img src='dataset/samples/sample_vidrio_2.jpg' alt='vidrio'><span style='background:#8a94a6;color:#ffffff'>Gris · vidrio</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_organico_1.jpg', this)"><img src='dataset/samples/sample_organico_1.jpg' alt='organico'><span style='background:#8b5a2b;color:#ffffff'>Marrón · organico</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_organico_2.jpg', this)"><img src='dataset/samples/sample_organico_2.jpg' alt='organico'><span style='background:#8b5a2b;color:#ffffff'>Marrón · organico</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_otros_residuos_1.jpg', this)"><img src='dataset/samples/sample_otros_residuos_1.jpg' alt='otros_residuos'><span style='background:#1b1f24;color:#ffffff'>Negro · otros_residuos</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_otros_residuos_2.jpg', this)"><img src='dataset/samples/sample_otros_residuos_2.jpg' alt='otros_residuos'><span style='background:#1b1f24;color:#ffffff'>Negro · otros_residuos</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_peligroso_1.jpg', this)"><img src='dataset/samples/sample_peligroso_1.jpg' alt='peligroso'><span style='background:#e5484d;color:#ffffff'>Rojo · peligroso</span></div><div class='sample-item' onclick="loadSampleImage('dataset/samples/sample_peligroso_2.jpg', this)"><img src='dataset/samples/sample_peligroso_2.jpg' alt='peligroso'><span style='background:#e5484d;color:#ffffff'>Rojo · peligroso</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">2 · Contenedor NTP 900.058 Asignado y Probabilidades</h3>
+      <div id="tacho-card" class="tacho-result">
+        <div id="tacho-icon" class="tacho-icon" style="background:#e9edf2;color:#111">NTP</div>
+        <div>
+          <h3 id="tacho-title" style="margin:0 0 4px;font-size:18px">Seleccione o suba una imagen</h3>
+          <p id="tacho-desc" style="margin:0;font-size:13.5px;color:var(--mut)">El modelo ONNX calculará en su navegador el contenedor oficial según la Norma Técnica Peruana NTP 900.058:2019.</p>
+          <small id="tacho-meta" style="display:block;margin-top:6px;font-weight:600;color:var(--acc)"></small>
+        </div>
+      </div>
+
+      <h4 style="margin:14px 0 8px;font-size:13px;text-transform:uppercase;color:var(--mut)">Distribución de Probabilidad por Contenedor NTP</h4>
+      <div id="prob-bars"></div>
+
+      <div style="margin-top:22px;padding:14px;background:#f8fafc;border-radius:12px;border:1px solid var(--line);font-size:13px">
+        <b>🔗 Accesos Rápidos del Proyecto Unificado:</b>
+        <ul style="margin:8px 0 0;padding-left:18px">
+          <li><a href="models/ciro_cls_ntp_v3.onnx" download>Descargar Clasificador <code>ciro_cls_ntp_v3.onnx</code> (21.3 MB)</a></li>
+          <li><a href="models/yolo26s_ntp_7c_v3.onnx" download>Descargar Detector <code>yolo26s_ntp_7c_v3.onnx</code> (38.1 MB)</a></li>
+          <li><a href="dataset/index.html">Explorar Dataset Curado NTP 900.058 (Manifiesto SHA-256, CSV y URLs)</a></li>
+          <li><a href="dossier.html">Abrir Dossier Técnico Completo de Evaluación Ciro v3</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Universidad Peruana Unión (UPeU) · Proyecto Ciro v3 — Clasificación y Detección de Residuos Sólidos bajo la NTP 900.058:2019 · Ejecución Web Estática con ONNX Runtime Web
+</footer>
+<script src="app.js"></script>
+</body>
+</html>

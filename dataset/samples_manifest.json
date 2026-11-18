@@ -1,0 +1,142 @@
+[
+  {
+    "id": "plastico_1",
+    "file": "dataset/samples/sample_plastico_1.jpg",
+    "rel_dataset_file": "samples/sample_plastico_1.jpg",
+    "class_name": "plastico",
+    "ntp_color": "Blanco",
+    "description": "Plásticos (PET, envases HDPE/PP)",
+    "bg_hex": "#e9edf2",
+    "fg_hex": "#16181d"
+  },
+  {
+    "id": "plastico_2",
+    "file": "dataset/samples/sample_plastico_2.jpg",
+    "rel_dataset_file": "samples/sample_plastico_2.jpg",
+    "class_name": "plastico",
+    "ntp_color": "Blanco",
+    "description": "Plásticos (PET, envases HDPE/PP)",
+    "bg_hex": "#e9edf2",
+    "fg_hex": "#16181d"
+  },
+  {
+    "id": "papel_carton_1",
+    "file": "dataset/samples/sample_papel_carton_1.jpg",
+    "rel_dataset_file": "samples/sample_papel_carton_1.jpg",
+    "class_name": "papel_carton",
+    "ntp_color": "Azul",
+    "description": "Papel y Cartón",
+    "bg_hex": "#1f6feb",
+    "fg_hex": "#ffffff"
+  },
+  {
+    "id": "papel_carton_2",
+    "file": "dataset/samples/sample_papel_carton_2.jpg",
+    "rel_dataset_file": "samples/sample_papel_carton_2.jpg",
+    "class_name": "papel_carton",
+    "ntp_color": "Azul",
+    "description": "Papel y Cartón",
+    "bg_hex": "#1f6feb",
+    "fg_hex": "#ffffff"
+  },
+  {
+    "id": "metal_1",
+    "file": "dataset/samples/sample_metal_1.jpg",
+    "rel_dataset_file": "samples/sample_metal_1.jpg",
+    "class_name": "metal",
+    "ntp_color": "Amarillo",
+    "description": "Metales (Latas, hojalata, aluminio)",
+    "bg_hex": "#f2c94c",
+    "fg_hex": "#16181d"
+  },
+  {
+    "id": "metal_2",
+    "file": "dataset/samples/sample_metal_2.jpg",
+    "rel_dataset_file": "samples/sample_metal_2.jpg",
+    "class_name": "metal",
+    "ntp_color": "Amarillo",
+    "description": "Metales (Latas, hojalata, aluminio)",
+    "bg_hex": "#f2c94c",
+    "fg_hex": "#16181d"
+  },
+  {
+    "id": "vidrio_1",
+    "file": "dataset/samples/sample_vidrio_1.jpg",
+    "rel_dataset_file": "samples/sample_vidrio_1.jpg",
+    "class_name": "vidrio",
+    "ntp_color": "Gris",
+    "description": "Vidrio (Botellas, frascos)",
+    "bg_hex": "#8a94a6",
+    "fg_hex": "#ffffff"
+  },
+  {
+    "id": "vidrio_2",
+    "file": "dataset/samples/sample_vidrio_2.jpg",
+    "rel_dataset_file": "samples/sample_vidrio_2.jpg",
+    "class_name": "vidrio",
+    "ntp_color": "Gris",
+    "description": "Vidrio (Botellas, frascos)",
+    "bg_hex": "#8a94a6",
+    "fg_hex": "#ffffff"
+  },
+  {
+    "id": "organico_1",
+    "file": "dataset/samples/sample_organico_1.jpg",
+    "rel_dataset_file": "samples/sample_organico_1.jpg",
+    "class_name": "organico",
+    "ntp_color": "Marrón",
+    "description": "Orgánicos (Restos de alimentos/vegetales)",
+    "bg_hex": "#8b5a2b",
+    "fg_hex": "#ffffff"
+  },
+  {
+    "id": "organico_2",
+    "file": "dataset/samples/sample_organico_2.jpg",
+    "rel_dataset_file": "samples/sample_organico_2.jpg",
+    "class_name": "organico",
+    "ntp_color": "Marrón",
+    "description": "Orgánicos (Restos de alimentos/vegetales)",
+    "bg_hex": "#8b5a2b",
+    "fg_hex": "#ffffff"
+  },
+  {
+    "id": "otros_residuos_1",
+    "file": "dataset/samples/sample_otros_residuos_1.jpg",
+    "rel_dataset_file": "samples/sample_otros_residuos_1.jpg",
+    "class_name": "otros_residuos",
+    "ntp_color": "Negro",
+    "description": "No Aprovechables (Tecnopor, envolturas, sanitarios)",
+    "bg_hex": "#1b1f24",
+    "fg_hex": "#ffffff"
+  },
+  {
+    "id": "otros_residuos_2",
+    "file": "dataset/samples/sample_otros_residuos_2.jpg",
+    "rel_dataset_file": "samples/sample_otros_residuos_2.jpg",
+    "class_name": "otros_residuos",
+    "ntp_color": "Negro",
+    "description": "No Aprovechables (Tecnopor, envolturas, sanitarios)",
+    "bg_hex": "#1b1f24",
+    "fg_hex": "#ffffff"
+  },
+  {
+    "id": "peligroso_1",
+    "file": "dataset/samples/sample_peligroso_1.jpg",
+    "rel_dataset_file": "samples/sample_peligroso_1.jpg",
+    "class_name": "peligroso",
+    "ntp_color": "Rojo",
+    "description": "Peligrosos (EPP clínico, pilas, aerosoles, fármacos)",
+    "bg_hex": "#e5484d",
+    "fg_hex": "#ffffff"
+  },
+  {
+    "id": "peligroso_2",
+    "file": "dataset/samples/sample_peligroso_2.jpg",
+    "rel_dataset_file": "samples/sample_peligroso_2.jpg",
+    "class_name": "peligroso",
+    "ntp_color": "Rojo",
+    "description": "Peligrosos (EPP clínico, pilas, aerosoles, fármacos)",
+    "bg_hex": "#e5484d",
+    "fg_hex": "#ffffff"
+  }
+]
