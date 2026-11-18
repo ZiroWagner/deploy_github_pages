@@ -1,66 +1,88 @@
-// app.js — Motor de Inferencia Client-Side ONNX Runtime Web (NTP 900.058:2019)
-// Soporta Clasificador (320x320), Detector YOLO26s (640x640) y Modo Híbrido Ponderado
+// app.js — Estación Interactiva Ciro v3 ONNX Runtime Web (NTP 900.058:2019)
 
 const NTP_CLASSES = {
   plastico: {
     color: "BLANCO",
+    short: "Plásticos",
     container: "Contenedor BLANCO — Plásticos Aprovechables",
-    bg: "#e9edf2",
-    fg: "#16181d",
-    border: "#94a3b8",
-    action: "Depositar botellas PET limpias, envases HDPE/PP y bolsas plásticas limpias."
+    bg: "#e2e8f0",
+    fg: "#0f172a",
+    bar: "#cbd5e1",
+    glow: "rgba(226, 232, 240, 0.45)",
+    action: "Depositar botellas PET limpias, envases rígidos HDPE/PP y tapas plásticas."
   },
   papel_carton: {
     color: "AZUL",
+    short: "Papel/Cartón",
     container: "Contenedor AZUL — Papel y Cartón",
-    bg: "#1f6feb",
+    bg: "#2563eb",
     fg: "#ffffff",
-    border: "#1d4ed8",
-    action: "Depositar hojas de papel, cajas de cartón corrugado, periódicos y revistas secas."
+    bar: "#3b82f6",
+    glow: "rgba(37, 99, 235, 0.5)",
+    action: "Depositar cajas de cartón corrugado, papel de oficina, periódicos y revistas secas."
   },
   metal: {
     color: "AMARILLO",
+    short: "Metales",
     container: "Contenedor AMARILLO — Metales",
-    bg: "#f2c94c",
-    fg: "#16181d",
-    border: "#d97706",
-    action: "Depositar latas de conserva, latas de aluminio, tapas metálicas y envases de hojalata."
+    bg: "#facc15",
+    fg: "#0f172a",
+    bar: "#eab308",
+    glow: "rgba(250, 204, 21, 0.45)",
+    action: "Depositar latas de aluminio, conservas de hojalata y envases metálicos."
   },
   vidrio: {
     color: "GRIS",
-    container: "Contenedor GRIS / PLOMO — Vidrio",
-    bg: "#8a94a6",
+    short: "Vidrio",
+    container: "Contenedor GRIS — Vidrio",
+    bg: "#64748b",
     fg: "#ffffff",
-    border: "#475569",
-    action: "Depositar botellas de vidrio, frascos y envases de vidrio transparente o ámbar."
+    bar: "#94a3b8",
+    glow: "rgba(148, 163, 184, 0.45)",
+    action: "Depositar botellas y frascos de vidrio transparente, ámbar o verde sin líquidos."
   },
   organico: {
     color: "MARRÓN",
+    short: "Orgánicos",
     container: "Contenedor MARRÓN — Residuos Orgánicos",
-    bg: "#8b5a2b",
+    bg: "#92400e",
     fg: "#ffffff",
-    border: "#78350f",
+    bar: "#b45309",
+    glow: "rgba(180, 83, 9, 0.5)",
     action: "Depositar restos de alimentos, cáscaras de frutas/verduras y residuos compostables."
   },
   otros_residuos: {
     color: "NEGRO",
-    container: "Contenedor NEGRO — No Aprovechables / Generales",
-    bg: "#1b1f24",
+    short: "Generales",
+    container: "Contenedor NEGRO — No Aprovechables",
+    bg: "#1e293b",
     fg: "#ffffff",
-    border: "#0f172a",
-    action: "Depositar tecnopor (poliestireno), envolturas metalizadas, servilletas sucias y sanitarios."
+    bar: "#475569",
+    glow: "rgba(100, 116, 139, 0.45)",
+    action: "Depositar tecnopor (poliestireno), envolturas multicapa, servilletas usadas y sanitarios."
   },
   peligroso: {
     color: "ROJO",
-    container: "Contenedor ROJO — Residuos Peligrosos / Biocontaminados",
-    bg: "#e5484d",
+    short: "Peligrosos",
+    container: "Contenedor ROJO — Peligrosos / Biocontaminados",
+    bg: "#dc2626",
     fg: "#ffffff",
-    border: "#b91c1c",
-    action: "¡ALERTA SANITARIA! Depositar EPP clínico (mascarillas, guantes, gasas), pilas, aerosoles, jeringas y fármacos."
+    bar: "#ef4444",
+    glow: "rgba(239, 68, 68, 0.6)",
+    action: "¡PRIORIDAD SANITARIA! EPP clínico (mascarillas, guantes, gasas), pilas, aerosoles y fármacos."
   }
 };
 
-// Orden de salida en ciro_cls_ntp_v3.onnx (ImageFolder alfabético)
+const BIN_ORDER = [
+  "plastico",
+  "papel_carton",
+  "metal",
+  "vidrio",
+  "organico",
+  "otros_residuos",
+  "peligroso"
+];
+
 const CLS_INDEX_TO_NAME = [
   "metal",
   "organico",
@@ -71,7 +93,6 @@ const CLS_INDEX_TO_NAME = [
   "vidrio"
 ];
 
-// Orden de salida en yolo26s_ntp_7c_v3.onnx (configs/taxonomy.yaml)
 const DET_INDEX_TO_NAME = [
   "plastico",
   "papel_carton",
@@ -84,36 +105,62 @@ const DET_INDEX_TO_NAME = [
 
 let clsSession = null;
 let detSession = null;
+let currentMode = "cls";
+let confThreshold = 0.25;
+let currentImgSource = null;
 let webcamStream = null;
 let webcamLoopId = null;
+const sessionCounts = {};
+BIN_ORDER.forEach(k => { sessionCounts[k] = 0; });
 
-const statusEl = document.getElementById("model-status");
-const latencyEl = document.getElementById("inference-latency");
-const modeSelect = document.getElementById("mode-select");
+const statusTextEl = document.getElementById("status-text");
+const latencyEl = document.getElementById("latency-badge");
 const canvas = document.getElementById("view-canvas");
 const ctx = canvas.getContext("2d");
+const viewport = document.getElementById("viewport");
+const confSlider = document.getElementById("conf-slider");
+const confValEl = document.getElementById("conf-val");
+
+function initBinsDock() {
+  const dock = document.getElementById("bins-dock");
+  dock.innerHTML = "";
+  for (const cname of BIN_ORDER) {
+    const info = NTP_CLASSES[cname];
+    const el = document.createElement("div");
+    el.className = "ntp-bin";
+    el.id = `bin-${cname}`;
+    el.innerHTML = `
+      <span class="bin-count" id="cnt-${cname}">0</span>
+      <div class="bin-lid" style="background:${info.bg}"></div>
+      <div class="bin-body" style="background:${info.bg};color:${info.fg}">${info.color}</div>
+      <div class="bin-name">${info.color}</div>
+      <div class="bin-sub">${info.short}</div>
+    `;
+    dock.appendChild(el);
+  }
+}
 
 async function initModels() {
   try {
     ort.env.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency || 2);
-    statusEl.textContent = "Cargando modelo Clasificador ONNX (ciro_cls_ntp_v3.onnx)...";
+    statusTextEl.textContent = "Cargando Clasificador ONNX...";
     clsSession = await ort.InferenceSession.create("models/ciro_cls_ntp_v3.onnx", {
       executionProviders: ["wasm"]
     });
-    statusEl.textContent = "✔ Clasificador ONNX listo (320×320 · NTP 900.058:2019)";
+    statusTextEl.textContent = "ONNX WebAssembly Activo";
   } catch (err) {
     console.error(err);
-    statusEl.textContent = "Error al cargar ONNX: " + err.message;
+    statusTextEl.textContent = "Error ONNX: " + err.message;
   }
 }
 
 async function ensureDetModel() {
   if (detSession) return detSession;
-  statusEl.textContent = "Cargando Detector Multiobjeto ONNX (yolo26s_ntp_7c_v3.onnx)...";
+  statusTextEl.textContent = "Cargando Detector YOLO26s ONNX...";
   detSession = await ort.InferenceSession.create("models/yolo26s_ntp_7c_v3.onnx", {
     executionProviders: ["wasm"]
   });
-  statusEl.textContent = "✔ Clasificador + Detector ONNX activos (Modo Híbrido / Multiobjeto)";
+  statusTextEl.textContent = "Clasificador + Detector ONNX Activos";
   return detSession;
 }
 
@@ -171,16 +218,14 @@ function iouBox(a, b) {
   return inter / (areaA + areaB - inter);
 }
 
-async function runDetector(imgSource, confThreshold = 0.22) {
+async function runDetector(imgSource, confThr) {
   await ensureDetModel();
   const inputTensor = preprocessToTensor(imgSource, 640);
   const feeds = { [detSession.inputNames[0]]: inputTensor };
   const results = await detSession.run(feeds);
   const outTensor = results[detSession.outputNames[0]];
   const data = outTensor.data;
-  const dims = outTensor.dims; // [1, 11, 8400]
-  const numChannels = dims[1];
-  const numAnchors = dims[2];
+  const numAnchors = outTensor.dims[2];
 
   const candidates = [];
   const maxPerClass = {};
@@ -198,7 +243,7 @@ async function runDetector(imgSource, confThreshold = 0.22) {
         bestClass = c;
       }
     }
-    if (bestScore >= confThreshold && bestClass >= 0) {
+    if (bestScore >= confThr && bestClass >= 0) {
       const xc = data[0 * numAnchors + a];
       const yc = data[1 * numAnchors + a];
       const bw = data[2 * numAnchors + a];
@@ -230,7 +275,7 @@ async function runDetector(imgSource, confThreshold = 0.22) {
   return { boxes, maxPerClass };
 }
 
-function drawSceneAndBoxes(imgSource, boxes) {
+function drawViewport(imgSource, boxes) {
   const w = imgSource.videoWidth || imgSource.naturalWidth || imgSource.width || 640;
   const h = imgSource.videoHeight || imgSource.naturalHeight || imgSource.height || 480;
   canvas.width = w;
@@ -244,133 +289,209 @@ function drawSceneAndBoxes(imgSource, boxes) {
     const bw = Math.min(w - x1, (b.x2 - b.x1) * w);
     const bh = Math.min(h - y1, (b.y2 - b.y1) * h);
 
-    ctx.strokeStyle = info.bg === "#e9edf2" ? "#38bdf8" : info.bg;
-    ctx.lineWidth = Math.max(3, Math.round(w / 180));
+    ctx.strokeStyle = info.bg === "#e2e8f0" ? "#38bdf8" : info.bg;
+    ctx.lineWidth = Math.max(3, Math.round(w / 160));
     ctx.strokeRect(x1, y1, bw, bh);
 
     const label = `${info.color} · ${b.className} ${(b.score * 100).toFixed(0)}%`;
-    ctx.font = `bold ${Math.max(12, Math.round(w / 42))}px Inter, sans-serif`;
-    const tw = ctx.measureText(label).width + 12;
-    const th = Math.max(22, Math.round(w / 26));
+    ctx.font = `800 ${Math.max(12, Math.round(w / 40))}px Inter, sans-serif`;
+    const tw = ctx.measureText(label).width + 14;
+    const th = Math.max(24, Math.round(w / 25));
     const ly = Math.max(0, y1 - th);
     ctx.fillStyle = info.bg;
     ctx.fillRect(x1, ly, tw, th);
     ctx.fillStyle = info.fg;
-    ctx.fillText(label, x1 + 6, ly + th - 6);
+    ctx.fillText(label, x1 + 7, ly + th - 6);
   }
 }
 
-function renderResultsUI(probMap, modeLabel, boxesCount) {
+function updateStationUI(probMap, modeTitle, boxesCount, incrementSession = true) {
   const entries = Object.entries(probMap).sort((a, b) => b[1] - a[1]);
   const [topClass, topProb] = entries[0];
   const info = NTP_CLASSES[topClass];
 
-  const card = document.getElementById("tacho-card");
-  const icon = document.getElementById("tacho-icon");
-  const title = document.getElementById("tacho-title");
-  const desc = document.getElementById("tacho-desc");
-  const meta = document.getElementById("tacho-meta");
+  // Iluminar contenedor ganador en la estación de 7 tachos
+  BIN_ORDER.forEach(cname => {
+    const binEl = document.getElementById(`bin-${cname}`);
+    if (!binEl) return;
+    if (cname === topClass) {
+      binEl.classList.add("winner");
+      binEl.style.borderColor = info.bg === "#1e293b" ? "#94a3b8" : info.bg;
+      binEl.style.boxShadow = `0 8px 24px ${info.glow}`;
+    } else {
+      binEl.classList.remove("winner");
+      binEl.style.borderColor = "transparent";
+      binEl.style.boxShadow = "none";
+    }
+  });
 
-  icon.style.background = info.bg;
-  icon.style.color = info.fg;
-  icon.style.borderColor = info.border;
-  icon.textContent = info.color;
+  if (incrementSession && !webcamStream) {
+    sessionCounts[topClass] = (sessionCounts[topClass] || 0) + 1;
+    const cntEl = document.getElementById(`cnt-${topClass}`);
+    if (cntEl) cntEl.textContent = sessionCounts[topClass];
+  }
 
-  card.style.borderColor = info.border;
-  title.textContent = info.container;
-  desc.textContent = info.action;
-  meta.textContent = `Clase canónica: ${topClass} · Confianza: ${(topProb * 100).toFixed(1)}% · Modo: ${modeLabel}` +
-    (boxesCount > 0 ? ` · Cajas detectadas: ${boxesCount}` : "");
+  // Actualizar tarjeta de decisión
+  const dCard = document.getElementById("decision-card");
+  const dSwatch = document.getElementById("decision-swatch");
+  const dTitle = document.getElementById("decision-title");
+  const dDesc = document.getElementById("decision-desc");
+  const dMeta = document.getElementById("decision-meta");
 
-  const barsContainer = document.getElementById("prob-bars");
-  barsContainer.innerHTML = "";
+  dCard.style.borderColor = info.bg === "#1e293b" ? "#64748b" : info.bg;
+  dSwatch.style.background = info.bg;
+  dSwatch.style.color = info.fg;
+  dSwatch.innerHTML = `<span>TACHO</span><b>${info.color}</b>`;
+  dTitle.textContent = info.container;
+  dDesc.textContent = info.action;
+  dMeta.innerHTML = `
+    <span class="mtag">Confianza: ${(topProb * 100).toFixed(1)}%</span>
+    <span class="mtag">Clase: ${topClass}</span>
+    <span class="mtag">${modeTitle}</span>
+    ${boxesCount > 0 ? `<span class="mtag">Cajas: ${boxesCount}</span>` : ""}
+  `;
+
+  // Actualizar barras de probabilidad
+  const listEl = document.getElementById("prob-list");
+  listEl.innerHTML = "";
   for (const [cname, pval] of entries) {
     const cinfo = NTP_CLASSES[cname];
     const pct = Math.min(100, Math.max(0, pval * 100));
-    const row = document.createElement("div");
-    row.className = "prob-row";
-    row.innerHTML = `
-      <div><span class="chip" style="background:${cinfo.bg};color:${cinfo.fg}">${cinfo.color}</span> <small>${cname}</small></div>
-      <div class="prob-bar"><div class="prob-fill" style="width:${pct.toFixed(1)}%;background:${cinfo.bg === '#e9edf2' ? '#64748b' : cinfo.bg}"></div></div>
-      <div style="text-align:right;font-weight:700">${pct.toFixed(1)}%</div>
+    const item = document.createElement("div");
+    item.className = "prob-item";
+    item.innerHTML = `
+      <div class="prob-label">
+        <i class="swatch-dot" style="background:${cinfo.bg}"></i>
+        <span>${cinfo.color} <small style="color:var(--mut);font-weight:500">(${cinfo.short})</small></span>
+      </div>
+      <div class="prob-track">
+        <div class="prob-fill" style="width:${pct.toFixed(1)}%;background:${cinfo.bar}"></div>
+      </div>
+      <div class="prob-pct">${pct.toFixed(1)}%</div>
     `;
-    barsContainer.appendChild(row);
+    listEl.appendChild(item);
   }
 }
 
-async function runInferenceOnSource(imgSource) {
-  const mode = modeSelect.value;
+async function runInference(imgSource, incrementSession = true) {
+  if (!imgSource) return;
+  currentImgSource = imgSource;
   const t0 = performance.now();
 
-  if (mode === "cls") {
+  if (currentMode === "cls") {
     const probMap = await runClassifier(imgSource);
-    drawSceneAndBoxes(imgSource, []);
-    const dt = (performance.now() - t0).toFixed(1);
-    latencyEl.textContent = `Latencia ONNX WebAssembly: ${dt} ms`;
-    renderResultsUI(probMap, "Clasificador ONNX (320px)", 0);
-  } else if (mode === "det") {
-    const { boxes, maxPerClass } = await runDetector(imgSource, 0.25);
-    drawSceneAndBoxes(imgSource, boxes);
+    drawViewport(imgSource, []);
+    latencyEl.textContent = `⚡ ${(performance.now() - t0).toFixed(1)} ms`;
+    updateStationUI(probMap, "Clasificador ONNX 320px", 0, incrementSession);
+  } else if (currentMode === "det") {
+    const { boxes, maxPerClass } = await runDetector(imgSource, confThreshold);
+    drawViewport(imgSource, boxes);
     const sumS = Object.values(maxPerClass).reduce((a, b) => a + b, 0) || 1;
     const normMap = {};
     Object.keys(maxPerClass).forEach(k => { normMap[k] = maxPerClass[k] / sumS; });
-    const dt = (performance.now() - t0).toFixed(1);
-    latencyEl.textContent = `Latencia ONNX WebAssembly: ${dt} ms`;
-    renderResultsUI(normMap, "Detector YOLO26s ONNX (640px)", boxes.length);
+    latencyEl.textContent = `⚡ ${(performance.now() - t0).toFixed(1)} ms`;
+    updateStationUI(normMap, `Detector YOLO26s (conf≥${Math.round(confThreshold * 100)}%)`, boxes.length, incrementSession);
   } else {
-    // Modo Híbrido: Fusión Ponderada 0.74*Cls + 0.26*Det + Regla Sanitaria Rojo
     const probCls = await runClassifier(imgSource);
-    const { boxes, maxPerClass } = await runDetector(imgSource, 0.20);
-    drawSceneAndBoxes(imgSource, boxes);
+    const { boxes, maxPerClass } = await runDetector(imgSource, confThreshold);
+    drawViewport(imgSource, boxes);
 
     const fused = {};
-    let total = 0;
     Object.keys(NTP_CLASSES).forEach(k => {
       fused[k] = 0.74 * (probCls[k] || 0) + 0.26 * (maxPerClass[k] || 0);
-      total += fused[k];
     });
-    // Regla de prioridad sanitaria para Rojo (peligroso)
     if (fused.peligroso >= 0.28 && (probCls.peligroso >= 0.18 || maxPerClass.peligroso >= 0.65)) {
       fused.peligroso = Math.max(fused.peligroso, 0.55);
     }
     const normTotal = Object.values(fused).reduce((a, b) => a + b, 0) || 1;
     Object.keys(fused).forEach(k => { fused[k] /= normTotal; });
 
-    const dt = (performance.now() - t0).toFixed(1);
-    latencyEl.textContent = `Latencia Híbrida ONNX WebAssembly: ${dt} ms`;
-    renderResultsUI(fused, "Híbrido Ciro v3 (Fusión 0.74·Cls + 0.26·Det)", boxes.length);
+    latencyEl.textContent = `⚡ ${(performance.now() - t0).toFixed(1)} ms`;
+    updateStationUI(fused, "Híbrido Ciro v3 (0.74·Cls + 0.26·Det)", boxes.length, incrementSession);
   }
 }
 
-function loadSampleImage(url, elem) {
+function setMode(mode, btnEl) {
+  currentMode = mode;
+  document.querySelectorAll(".mode-pill").forEach(b => b.classList.remove("active"));
+  if (btnEl) btnEl.classList.add("active");
+  if (currentImgSource && !webcamStream) {
+    runInference(currentImgSource, false);
+  }
+}
+
+confSlider.addEventListener("input", e => {
+  confThreshold = parseInt(e.target.value, 10) / 100;
+  confValEl.textContent = `${e.target.value}%`;
+  if (currentImgSource && !webcamStream && currentMode !== "cls") {
+    runInference(currentImgSource, false);
+  }
+});
+
+function loadSample(url, cardEl) {
   stopWebcam();
-  document.querySelectorAll(".sample-item").forEach(el => el.classList.remove("active"));
-  if (elem) elem.classList.add("active");
+  document.querySelectorAll(".sample-card").forEach(c => c.classList.remove("active"));
+  if (cardEl) cardEl.classList.add("active");
   const img = new Image();
   img.crossOrigin = "anonymous";
-  img.onload = () => runInferenceOnSource(img);
+  img.onload = () => runInference(img, true);
   img.src = url;
 }
 
+function pickRandomSample() {
+  const visibleCards = Array.from(document.querySelectorAll(".sample-card")).filter(
+    c => c.style.display !== "none"
+  );
+  if (!visibleCards.length) return;
+  const pick = visibleCards[Math.floor(Math.random() * visibleCards.length)];
+  pick.click();
+}
+
+function filterSamples(colorFilter, chipEl) {
+  document.querySelectorAll(".fchip").forEach(c => c.classList.remove("active"));
+  if (chipEl) chipEl.classList.add("active");
+  document.querySelectorAll(".sample-card").forEach(card => {
+    const c = card.getAttribute("data-color");
+    card.style.display = (colorFilter === "ALL" || c === colorFilter) ? "block" : "none";
+  });
+}
+
+function resetSessionCounts() {
+  BIN_ORDER.forEach(k => {
+    sessionCounts[k] = 0;
+    const el = document.getElementById(`cnt-${k}`);
+    if (el) el.textContent = "0";
+  });
+}
+
+// Drag & Drop en el Viewport
+viewport.addEventListener("dragover", e => {
+  e.preventDefault();
+  viewport.classList.add("dragover");
+});
+viewport.addEventListener("dragleave", () => viewport.classList.remove("dragover"));
+viewport.addEventListener("drop", e => {
+  e.preventDefault();
+  viewport.classList.remove("dragover");
+  const file = e.dataTransfer.files[0];
+  if (file) handleImageFile(file);
+});
+
 document.getElementById("file-input").addEventListener("change", e => {
-  const file = e.target.files[0];
-  if (!file) return;
+  if (e.target.files[0]) handleImageFile(e.target.files[0]);
+});
+
+function handleImageFile(file) {
   stopWebcam();
+  document.querySelectorAll(".sample-card").forEach(c => c.classList.remove("active"));
   const reader = new FileReader();
   reader.onload = ev => {
     const img = new Image();
-    img.onload = () => runInferenceOnSource(img);
+    img.onload = () => runInference(img, true);
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
-});
-
-modeSelect.addEventListener("change", () => {
-  const activeSample = document.querySelector(".sample-item.active img");
-  if (activeSample && !webcamStream) {
-    runInferenceOnSource(activeSample);
-  }
-});
+}
 
 async function toggleWebcam() {
   if (webcamStream) {
@@ -378,21 +499,25 @@ async function toggleWebcam() {
     return;
   }
   try {
-    webcamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    webcamStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
+    });
     const video = document.createElement("video");
     video.srcObject = webcamStream;
     video.playsInline = true;
     await video.play();
-    document.getElementById("webcam-btn").textContent = "⏹ Detener Cámara";
+    const btn = document.getElementById("webcam-btn");
+    btn.textContent = "⏹ Detener Cámara";
+    btn.classList.add("live-active");
 
     async function loop() {
       if (!webcamStream) return;
-      await runInferenceOnSource(video);
+      await runInference(video, false);
       webcamLoopId = requestAnimationFrame(loop);
     }
     loop();
   } catch (err) {
-    alert("No se pudo acceder a la cámara web: " + err.message);
+    alert("No se pudo iniciar la cámara web: " + err.message);
   }
 }
 
@@ -403,22 +528,15 @@ function stopWebcam() {
     webcamStream = null;
   }
   const btn = document.getElementById("webcam-btn");
-  if (btn) btn.textContent = "📷 Cámara en Vivo";
+  if (btn) {
+    btn.textContent = "📷 Cámara en Vivo";
+    btn.classList.remove("live-active");
+  }
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  initBinsDock();
   await initModels();
-  const firstSample = document.querySelector(".sample-item");
-  if (firstSample) {
-    const imgEl = firstSample.querySelector("img");
-    if (imgEl && imgEl.complete) {
-      firstSample.classList.add("active");
-      runInferenceOnSource(imgEl);
-    } else if (imgEl) {
-      imgEl.onload = () => {
-        firstSample.classList.add("active");
-        runInferenceOnSource(imgEl);
-      };
-    }
-  }
+  const firstCard = document.querySelector(".sample-card");
+  if (firstCard) firstCard.click();
 });

@@ -1,8 +1,0 @@
-class_id,class_name,train_boxes,val_boxes,test_boxes,total_boxes
-0,plastico,2416,519,517,3452
-1,papel_carton,2091,448,451,2990
-2,metal,1745,373,377,2495
-3,vidrio,1793,385,388,2566
-4,organico,2300,498,493,3291
-5,otros_residuos,1390,298,298,1986
-6,peligroso,2772,597,590,3959
